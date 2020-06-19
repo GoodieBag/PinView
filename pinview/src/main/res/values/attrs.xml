@@ -12,6 +12,8 @@
         <attr name="hint" format="string"/>
         <attr name="inputType"/>
         <attr name="textSize" format="dimension"/>
+<!--        <attr name="fontFamily" format="string"/>-->
+<!--        <attr name="textStyle" format="integer"/>-->
     </declare-styleable>
     <attr name="inputType" format="enum">
         <enum name="text" value="0"/>

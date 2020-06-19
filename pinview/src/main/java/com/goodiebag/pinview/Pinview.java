@@ -24,6 +24,7 @@ import android.content.Context;
 import android.content.res.TypedArray;
 import android.graphics.PorterDuff;
 import android.graphics.Rect;
+import android.graphics.Typeface;
 import android.graphics.drawable.Drawable;
 import android.support.annotation.ColorInt;
 import android.support.annotation.DrawableRes;
@@ -89,6 +90,9 @@ public class Pinview extends LinearLayout implements TextWatcher, View.OnFocusCh
     private       PinViewEventListener mListener;
     private       boolean              fromSetValue   = false;
     private       boolean              mForceKeyboard = true;
+    private       int                  mTextStyle     = Typeface.NORMAL;
+    private       String               mFontFamily    = null;
+    private       Typeface             mTypeFace      = null;
 
     public enum InputType {
         TEXT, NUMBER
@@ -184,6 +188,9 @@ public class Pinview extends LinearLayout implements TextWatcher, View.OnFocusCh
         for (int i = 0; i < mPinLength; i++) {
             editText = new EditText(getContext());
             editText.setTextSize(mTextSize);
+            if (mTypeFace != null) {
+                editText.setTypeface(mTypeFace);
+            }
             editTextList.add(i, editText);
             this.addView(editText);
             generateOneEditText(editText, "" + i);
@@ -207,6 +214,8 @@ public class Pinview extends LinearLayout implements TextWatcher, View.OnFocusCh
             mPinWidth = (int) array.getDimension(R.styleable.Pinview_pinWidth, mPinWidth);
             mSplitWidth = (int) array.getDimension(R.styleable.Pinview_splitWidth, mSplitWidth);
             mTextSize = (int) array.getDimension(R.styleable.Pinview_textSize, mTextSize);
+//            mTextStyle = array.getInt(R.styleable.Pinview_textStyle, mTextStyle);
+//            mFontFamily = array.getString(R.styleable.Pinview_fontFamily);
             mCursorVisible = array.getBoolean(R.styleable.Pinview_cursorVisible, mCursorVisible);
             mPassword = array.getBoolean(R.styleable.Pinview_password, mPassword);
             mForceKeyboard = array.getBoolean(R.styleable.Pinview_forceKeyboard, mForceKeyboard);
@@ -214,6 +223,9 @@ public class Pinview extends LinearLayout implements TextWatcher, View.OnFocusCh
             InputType[] its = InputType.values();
             inputType = its[array.getInt(R.styleable.Pinview_inputType, 0)];
             array.recycle();
+            if (mFontFamily != null) {
+                mTypeFace = Typeface.create(mFontFamily, mTextStyle);
+            }
         }
     }
 
@@ -671,11 +683,23 @@ public class Pinview extends LinearLayout implements TextWatcher, View.OnFocusCh
 
     public void setTextSize(int textSize) {
         mTextSize = textSize;
+        updateEditTexts();
+    }
+
+    public void setTypeFace(Typeface typeFace) {
+        mTypeFace = typeFace;
+        updateEditTexts();
+    }
+
+    private void updateEditTexts() {
         if (editTextList == null || editTextList.isEmpty()) {
             return;
         }
         for (EditText edt : editTextList) {
             edt.setTextSize(mTextSize);
+            if (mTypeFace != null) {
+                edt.setTypeface(mTypeFace);
+            }
         }
     }
 

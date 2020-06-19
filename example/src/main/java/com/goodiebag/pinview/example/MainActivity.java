@@ -1,6 +1,8 @@
 package com.goodiebag.pinview.example;
 
+import android.annotation.SuppressLint;
 import android.graphics.Color;
+import android.graphics.Typeface;
 import android.os.Bundle;
 import android.support.v7.app.AppCompatActivity;
 import android.widget.Toast;
@@ -20,7 +22,7 @@ public class MainActivity extends AppCompatActivity {
                 Toast.makeText(MainActivity.this, pinview.getValue(), Toast.LENGTH_SHORT).show();
             }
         });
-
+        setFont(pinview1);
 
         // pinView Customize
         Pinview pinview5 = findViewById(R.id.pinview5);
@@ -29,5 +31,11 @@ public class MainActivity extends AppCompatActivity {
         pinview5.setTextSize(12);
         pinview5.setTextColor(Color.BLACK);
         pinview5.showCursor(true);
+    }
+
+    @SuppressLint("NewApi")
+    private void setFont(Pinview pinview1) {
+        Typeface typeface = getResources().getFont(R.font.poppins_semibold);
+        pinview1.setTypeFace(typeface);
     }
 }
