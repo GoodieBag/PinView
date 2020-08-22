@@ -22,13 +22,11 @@ package com.goodiebag.pinview;
 
 import android.content.Context;
 import android.content.res.TypedArray;
+import android.graphics.Color;
 import android.graphics.PorterDuff;
 import android.graphics.Rect;
+import android.graphics.Typeface;
 import android.graphics.drawable.Drawable;
-import android.support.annotation.ColorInt;
-import android.support.annotation.DrawableRes;
-import android.support.annotation.NonNull;
-import android.support.v4.content.ContextCompat;
 import android.text.Editable;
 import android.text.InputFilter;
 import android.text.TextWatcher;
@@ -39,13 +37,18 @@ import android.view.KeyEvent;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.inputmethod.InputMethodManager;
-import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
 import java.lang.reflect.Field;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+
+import androidx.annotation.ColorInt;
+import androidx.annotation.DrawableRes;
+import androidx.annotation.NonNull;
+import androidx.core.content.ContextCompat;
 
 import static android.text.InputType.TYPE_CLASS_NUMBER;
 import static android.text.InputType.TYPE_CLASS_TEXT;
@@ -73,7 +76,7 @@ public class Pinview extends LinearLayout implements TextWatcher, View.OnFocusCh
      * Attributes
      */
     private       int                  mPinLength     = 4;
-    private       List<EditText>       editTextList   = new ArrayList<>();
+    private       List<TextView>       editTextList   = new ArrayList<>();
     private       int                  mPinWidth      = 50;
     private       int                  mTextSize      = 12;
     private       int                  mPinHeight     = 50;
@@ -89,6 +92,9 @@ public class Pinview extends LinearLayout implements TextWatcher, View.OnFocusCh
     private       PinViewEventListener mListener;
     private       boolean              fromSetValue   = false;
     private       boolean              mForceKeyboard = true;
+    private       int                  mTextStyle     = Typeface.NORMAL;
+    private       String               mFontFamily    = null;
+    private       Typeface             mTypeFace      = null;
 
     public enum InputType {
         TEXT, NUMBER
@@ -145,10 +151,10 @@ public class Pinview extends LinearLayout implements TextWatcher, View.OnFocusCh
             @Override
             public void onClick(View view) {
                 boolean focused = false;
-                for (EditText editText : editTextList) {
+                for (TextView editText : editTextList) {
                     if (editText.length() == 0) {
                         editText.requestFocus();
-                        openKeyboard();
+                        openKeyboardIfForced();
                         focused = true;
                         break;
                     }
@@ -163,13 +169,14 @@ public class Pinview extends LinearLayout implements TextWatcher, View.OnFocusCh
         });
         // Bring up the keyboard
         final View firstEditText = editTextList.get(0);
-        if (firstEditText != null)
+        if (firstEditText != null) {
             firstEditText.postDelayed(new Runnable() {
                 @Override
                 public void run() {
-                    openKeyboard();
+                    openKeyboardIfForced();
                 }
             }, 200);
+        }
         updateEnabledState();
     }
 
@@ -180,10 +187,15 @@ public class Pinview extends LinearLayout implements TextWatcher, View.OnFocusCh
     private void createEditTexts() {
         removeAllViews();
         editTextList.clear();
-        EditText editText;
+        TextView editText;
         for (int i = 0; i < mPinLength; i++) {
-            editText = new EditText(getContext());
+            editText = new TextView(getContext());
+            editText.setFocusableInTouchMode(true); // EditText behaviour
+            editText.setTextColor(Color.BLACK); // color like EditText instead of greish
             editText.setTextSize(mTextSize);
+            if (mTypeFace != null) {
+                editText.setTypeface(mTypeFace);
+            }
             editTextList.add(i, editText);
             this.addView(editText);
             generateOneEditText(editText, "" + i);
@@ -206,7 +218,11 @@ public class Pinview extends LinearLayout implements TextWatcher, View.OnFocusCh
             mPinHeight = (int) array.getDimension(R.styleable.Pinview_pinHeight, mPinHeight);
             mPinWidth = (int) array.getDimension(R.styleable.Pinview_pinWidth, mPinWidth);
             mSplitWidth = (int) array.getDimension(R.styleable.Pinview_splitWidth, mSplitWidth);
-            mTextSize = (int) array.getDimension(R.styleable.Pinview_textSize, mTextSize);
+            // We expect mTextSize to be sp, but we allow specifying via xml in any dimension resource as standard. Hence the scaling here
+            float scaledDensity = getResources().getDisplayMetrics().scaledDensity;
+            mTextSize = (int) (array.getDimensionPixelSize(R.styleable.Pinview_textSize, (int) (mTextSize * scaledDensity)) / scaledDensity);
+//            mTextStyle = array.getInt(R.styleable.Pinview_textStyle, mTextStyle);
+//            mFontFamily = array.getString(R.styleable.Pinview_fontFamily);
             mCursorVisible = array.getBoolean(R.styleable.Pinview_cursorVisible, mCursorVisible);
             mPassword = array.getBoolean(R.styleable.Pinview_password, mPassword);
             mForceKeyboard = array.getBoolean(R.styleable.Pinview_forceKeyboard, mForceKeyboard);
@@ -214,6 +230,9 @@ public class Pinview extends LinearLayout implements TextWatcher, View.OnFocusCh
             InputType[] its = InputType.values();
             inputType = its[array.getInt(R.styleable.Pinview_inputType, 0)];
             array.recycle();
+            if (mFontFamily != null) {
+                mTypeFace = Typeface.create(mFontFamily, mTextStyle);
+            }
         }
     }
 
@@ -224,7 +243,7 @@ public class Pinview extends LinearLayout implements TextWatcher, View.OnFocusCh
      * @param styleEditText
      * @param tag
      */
-    private void generateOneEditText(EditText styleEditText, String tag) {
+    private void generateOneEditText(TextView styleEditText, String tag) {
         params.setMargins(mSplitWidth / 2, mSplitWidth / 2, mSplitWidth / 2, mSplitWidth / 2);
         filters[0] = new InputFilter.LengthFilter(1);
         styleEditText.setFilters(filters);
@@ -277,32 +296,37 @@ public class Pinview extends LinearLayout implements TextWatcher, View.OnFocusCh
 
     public String getValue() {
         StringBuilder sb = new StringBuilder();
-        for (EditText et : editTextList) {
+        for (TextView et : editTextList) {
             sb.append(et.getText().toString());
         }
         return sb.toString();
     }
 
     /**
-     * Requsets focus on current pin view and opens keyboard if forceKeyboard is enabled.
+     * Requests focus on current pin view and opens keyboard if forceKeyboard is enabled.
+     * If open keyboard is disabled in XML, use openKeyboard()
      *
-     * @return the current focused pin view. It can be used to open softkeyboard manually.
+     * @return the current focused pin view. It can be used to open soft-keyboard manually.
      */
     public View requestPinEntryFocus() {
-        int      currentTag      = Math.max(0, getIndexOfCurrentFocus());
-        EditText currentEditText = editTextList.get(currentTag);
+        int currentTag = Math.max(0, getIndexOfCurrentFocus());
+        TextView currentEditText = editTextList.get(currentTag);
         if (currentEditText != null) {
             currentEditText.requestFocus();
         }
-        openKeyboard();
+        openKeyboardIfForced();
         return currentEditText;
     }
 
-    private void openKeyboard() {
+    private void openKeyboardIfForced() {
         if (mForceKeyboard) {
-            InputMethodManager inputMethodManager = (InputMethodManager) getContext().getSystemService(Context.INPUT_METHOD_SERVICE);
-            inputMethodManager.toggleSoftInput(InputMethodManager.SHOW_FORCED, InputMethodManager.HIDE_IMPLICIT_ONLY);
+            openKeyboard();
         }
+    }
+
+    public void openKeyboard() {
+        InputMethodManager inputMethodManager = (InputMethodManager) getContext().getSystemService(Context.INPUT_METHOD_SERVICE);
+        inputMethodManager.toggleSoftInput(InputMethodManager.SHOW_FORCED, InputMethodManager.HIDE_IMPLICIT_ONLY);
     }
 
     /**
@@ -355,7 +379,7 @@ public class Pinview extends LinearLayout implements TextWatcher, View.OnFocusCh
                 mDelPressed = false;
                 return;
             }
-            for (final EditText editText : editTextList) {
+            for (final TextView editText : editTextList) {
                 if (editText.length() == 0) {
                     if (editText != view) {
                         editText.requestFocus();
@@ -382,13 +406,13 @@ public class Pinview extends LinearLayout implements TextWatcher, View.OnFocusCh
      */
     private void setTransformation() {
         if (mPassword) {
-            for (EditText editText : editTextList) {
+            for (TextView editText : editTextList) {
                 editText.removeTextChangedListener(this);
                 editText.setTransformationMethod(new PinTransformationMethod());
                 editText.addTextChangedListener(this);
             }
         } else {
-            for (EditText editText : editTextList) {
+            for (TextView editText : editTextList) {
                 editText.removeTextChangedListener(this);
                 editText.setTransformationMethod(null);
                 editText.addTextChangedListener(this);
@@ -421,7 +445,7 @@ public class Pinview extends LinearLayout implements TextWatcher, View.OnFocusCh
                 this.postDelayed(new Runnable() {
                     @Override
                     public void run() {
-                        EditText nextEditText = editTextList.get(currentTag + 1);
+                        TextView nextEditText = editTextList.get(currentTag + 1);
                         nextEditText.setEnabled(true);
                         nextEditText.requestFocus();
                     }
@@ -456,7 +480,7 @@ public class Pinview extends LinearLayout implements TextWatcher, View.OnFocusCh
     private void updateEnabledState() {
         int currentTag = Math.max(0, getIndexOfCurrentFocus());
         for (int index = 0; index < editTextList.size(); index++) {
-            EditText editText = editTextList.get(index);
+            TextView editText = editTextList.get(index);
             editText.setEnabled(index <= currentTag);
         }
     }
@@ -569,7 +593,7 @@ public class Pinview extends LinearLayout implements TextWatcher, View.OnFocusCh
         int margin = splitWidth / 2;
         params.setMargins(margin, margin, margin, margin);
 
-        for (EditText editText : editTextList) {
+        for (TextView editText : editTextList) {
             editText.setLayoutParams(params);
         }
     }
@@ -581,7 +605,7 @@ public class Pinview extends LinearLayout implements TextWatcher, View.OnFocusCh
     public void setPinHeight(int pinHeight) {
         this.mPinHeight = pinHeight;
         params.height = pinHeight;
-        for (EditText editText : editTextList) {
+        for (TextView editText : editTextList) {
             editText.setLayoutParams(params);
         }
     }
@@ -593,7 +617,7 @@ public class Pinview extends LinearLayout implements TextWatcher, View.OnFocusCh
     public void setPinWidth(int pinWidth) {
         this.mPinWidth = pinWidth;
         params.width = pinWidth;
-        for (EditText editText : editTextList) {
+        for (TextView editText : editTextList) {
             editText.setLayoutParams(params);
         }
     }
@@ -622,7 +646,7 @@ public class Pinview extends LinearLayout implements TextWatcher, View.OnFocusCh
 
     public void setHint(String mHint) {
         this.mHint = mHint;
-        for (EditText editText : editTextList)
+        for (TextView editText : editTextList)
             editText.setHint(mHint);
     }
 
@@ -634,7 +658,7 @@ public class Pinview extends LinearLayout implements TextWatcher, View.OnFocusCh
 
     public void setPinBackgroundRes(@DrawableRes int res) {
         this.mPinBackground = res;
-        for (EditText editText : editTextList)
+        for (TextView editText : editTextList)
             editText.setBackgroundResource(res);
     }
 
@@ -650,7 +674,7 @@ public class Pinview extends LinearLayout implements TextWatcher, View.OnFocusCh
     public void setInputType(InputType inputType) {
         this.inputType = inputType;
         int it = getKeyboardInputType();
-        for (EditText editText : editTextList) {
+        for (TextView editText : editTextList) {
             editText.setInputType(it);
         }
     }
@@ -664,19 +688,46 @@ public class Pinview extends LinearLayout implements TextWatcher, View.OnFocusCh
         if (editTextList == null || editTextList.isEmpty()) {
             return;
         }
-        for (EditText edt : editTextList) {
+        for (TextView edt : editTextList) {
             edt.setCursorVisible(status);
         }
     }
 
     public void setTextSize(int textSize) {
         mTextSize = textSize;
+        updateEditTexts();
+    }
+
+    public void setTypeface(Typeface typeFace) {
+        mTypeFace = typeFace;
+        updateEditTexts();
+    }
+
+    private void updateEditTexts() {
         if (editTextList == null || editTextList.isEmpty()) {
             return;
         }
-        for (EditText edt : editTextList) {
+        for (TextView edt : editTextList) {
+            edt.setLayoutParams(params);
             edt.setTextSize(mTextSize);
+            if (mTypeFace != null) {
+                edt.setTypeface(mTypeFace);
+            }
         }
+    }
+
+    /**
+     * Permit custom changes directly applied to the TextView-views.
+     *
+     * If the applied font has a slight offset, it can be adjusted by applying a padding like
+     * <pre>
+     *     val fontScaledDensity = app.resources.displayMetrics.scaledDensity
+     *     textView.setPadding(0, (20 * fontScaledDensity).toInt(), 0, 0)
+     *  </pre>
+     * @return
+     */
+    public List<TextView> getEditTextViews() {
+        return Collections.unmodifiableList(editTextList);
     }
 
     public void setCursorColor(@ColorInt int color) {
@@ -684,27 +735,31 @@ public class Pinview extends LinearLayout implements TextWatcher, View.OnFocusCh
         if (editTextList == null || editTextList.isEmpty()) {
             return;
         }
-        for (EditText edt : editTextList) {
+        for (TextView edt : editTextList) {
             setCursorColor(edt, color);
         }
     }
 
     public void setTextColor(@ColorInt int color) {
-
         if (editTextList == null || editTextList.isEmpty()) {
             return;
         }
-        for (EditText edt : editTextList) {
-          edt.setTextColor(color);
+        for (TextView edt : editTextList) {
+            edt.setTextColor(color);
+        }
+    }
+
+    public void setTextPadding(int left, int top, int right, int bottom) {
+        for (TextView textView : editTextList) {
+            textView.setPadding(left, top, right, bottom);
         }
     }
 
     public void setCursorShape(@DrawableRes int shape) {
-
         if (editTextList == null || editTextList.isEmpty()) {
             return;
         }
-        for (EditText edt : editTextList) {
+        for (TextView edt : editTextList) {
             try {
                 Field f = TextView.class.getDeclaredField("mCursorDrawableRes");
                 f.setAccessible(true);
@@ -714,7 +769,7 @@ public class Pinview extends LinearLayout implements TextWatcher, View.OnFocusCh
         }
     }
 
-    private void setCursorColor(EditText view, @ColorInt int color) {
+    private void setCursorColor(TextView view, @ColorInt int color) {
         try {
             // Get the cursor resource id
             Field field = TextView.class.getDeclaredField("mCursorDrawableRes");
