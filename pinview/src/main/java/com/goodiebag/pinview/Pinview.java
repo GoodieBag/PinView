@@ -153,7 +153,7 @@ public class Pinview extends LinearLayout implements TextWatcher, View.OnFocusCh
                 for (TextView editText : editTextList) {
                     if (editText.length() == 0) {
                         editText.requestFocus();
-                        openKeyboard();
+                        openKeyboardIfForced();
                         focused = true;
                         break;
                     }
@@ -168,13 +168,14 @@ public class Pinview extends LinearLayout implements TextWatcher, View.OnFocusCh
         });
         // Bring up the keyboard
         final View firstEditText = editTextList.get(0);
-        if (firstEditText != null)
+        if (firstEditText != null) {
             firstEditText.postDelayed(new Runnable() {
                 @Override
                 public void run() {
-                    openKeyboard();
+                    openKeyboardIfForced();
                 }
             }, 200);
+        }
         updateEnabledState();
     }
 
@@ -301,25 +302,30 @@ public class Pinview extends LinearLayout implements TextWatcher, View.OnFocusCh
     }
 
     /**
-     * Requsets focus on current pin view and opens keyboard if forceKeyboard is enabled.
+     * Requests focus on current pin view and opens keyboard if forceKeyboard is enabled.
+     * If open keyboard is disabled in XML, use openKeyboard()
      *
-     * @return the current focused pin view. It can be used to open softkeyboard manually.
+     * @return the current focused pin view. It can be used to open soft-keyboard manually.
      */
     public View requestPinEntryFocus() {
-        int      currentTag      = Math.max(0, getIndexOfCurrentFocus());
+        int currentTag = Math.max(0, getIndexOfCurrentFocus());
         TextView currentEditText = editTextList.get(currentTag);
         if (currentEditText != null) {
             currentEditText.requestFocus();
         }
-        openKeyboard();
+        openKeyboardIfForced();
         return currentEditText;
     }
 
-    private void openKeyboard() {
+    private void openKeyboardIfForced() {
         if (mForceKeyboard) {
-            InputMethodManager inputMethodManager = (InputMethodManager) getContext().getSystemService(Context.INPUT_METHOD_SERVICE);
-            inputMethodManager.toggleSoftInput(InputMethodManager.SHOW_FORCED, InputMethodManager.HIDE_IMPLICIT_ONLY);
+            openKeyboard();
         }
+    }
+
+    public void openKeyboard() {
+        InputMethodManager inputMethodManager = (InputMethodManager) getContext().getSystemService(Context.INPUT_METHOD_SERVICE);
+        inputMethodManager.toggleSoftInput(InputMethodManager.SHOW_FORCED, InputMethodManager.HIDE_IMPLICIT_ONLY);
     }
 
     /**
